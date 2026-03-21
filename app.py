@@ -70,7 +70,7 @@ st.caption("Air Quality Prediction Dashboard")
 # ------------------------------------------
 
 df = pd.read_csv("aqi_project_dataset.csv")
-df["date"] = pd.to_datetime(df["date"])
+df["date"] = pd.to_datetime(df["date"],dayfirst=True)
 df = df[["date", "area", "aqi_value"]]
 
 # ------------------------------------------
