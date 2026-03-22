@@ -10,7 +10,7 @@ from datetime import datetime
 st.set_page_config(page_title="AirAware Smart", layout="wide")
 
 # ------------------------------------------
-# CLEAN PROFESSIONAL STYLING
+# CLEAN PROFESSIONAL STYLING (FINAL FIX)
 # ------------------------------------------
 
 st.markdown("""
@@ -43,14 +43,37 @@ section[data-testid="stSidebar"] {
     text-align: center;
     border: 1px solid #e0e0e0;
     box-shadow: 0px 1px 4px rgba(0,0,0,0.05);
+    color: #000000 !important;
 }
 
-/* Titles */
+/* Force text visibility */
+.kpi-box div {
+    color: #000000 !important;
+}
+
+/* Headings fix */
 h1, h2, h3 {
-    color: #333333;
+    color: #000000 !important;
+    font-weight: 700;
 }
 
-/* Reduce vertical gaps */
+/* Ensure all text visible */
+p, span {
+    color: #000000 !important;
+}
+
+/* Responsive font */
+@media (max-width: 768px) {
+    h1 { font-size: 1.5rem !important; }
+    h2 { font-size: 1.3rem !important; }
+    h3 { font-size: 1.1rem !important; }
+
+    .kpi-box div {
+        font-size: 1rem !important;
+    }
+}
+
+/* Reduce gaps */
 div[data-testid="stVerticalBlock"] > div {
     margin-bottom: 8px;
 }
@@ -69,8 +92,8 @@ st.caption("Air Quality Prediction Dashboard")
 # LOAD DATA
 # ------------------------------------------
 
-df = pd.read_csv("aqi_project_dataset.csv")
-df["date"] = pd.to_datetime(df["date"],dayfirst=True)
+df = pd.read_csv(r"c:\Users\hp\Downloads\aqi_project_dataset.csv")
+df["date"] = pd.to_datetime(df["date"], dayfirst=True)
 df = df[["date", "area", "aqi_value"]]
 
 # ------------------------------------------
@@ -99,7 +122,7 @@ top_cities = (
 top_cities.columns = ["City", "AQI"]
 top_cities.insert(0, "Rank", range(1, len(top_cities)+1))
 
-st.sidebar.dataframe(top_cities, width='stretch', hide_index=True)
+st.sidebar.dataframe(top_cities, width="stretch", hide_index=True)
 
 # ------------------------------------------
 # DATA PREPARATION
@@ -142,6 +165,8 @@ def get_category(aqi):
         return "Good"
     elif aqi <= 100:
         return "Moderate"
+    elif aqi <= 150:
+        return "Unhealthy for Sensitive"
     elif aqi <= 200:
         return "Unhealthy"
     else:
@@ -152,6 +177,8 @@ def get_color(aqi):
         return "#2e7d32"
     elif aqi <= 100:
         return "#f9a825"
+    elif aqi <= 200:
+        return "#ef6c00"
     else:
         return "#c62828"
 
@@ -159,7 +186,7 @@ category = get_category(today_aqi)
 color = get_color(today_aqi)
 
 # ------------------------------------------
-# KPI SECTION (CLEAN CARDS)
+# KPI SECTION
 # ------------------------------------------
 
 col1, col2, col3 = st.columns(3)
@@ -167,37 +194,43 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown(f"""
     <div class="kpi-box">
-        <div style="font-size:25px; color:#666;">City</div>
-        <div style="font-size:20px; font-weight:600;">{city}</div>
+        <div>City</div>
+        <div style="font-size:1.4rem; font-weight:600;">{city}</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
     st.markdown(f"""
     <div class="kpi-box">
-        <div style="font-size:25px; color:#666;">AQI Today</div>
-        <div style="font-size:22px; font-weight:600; color:{color};">{today_aqi}</div>
+        <div>AQI Today</div>
+        <div style="font-size:1.4rem; font-weight:600; color:{color};">{today_aqi}</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
     st.markdown(f"""
     <div class="kpi-box">
-        <div style="font-size:25px; color:#666;">Category</div>
-        <div style="font-size:20px; font-weight:600; color:{color};">{category}</div>
+        <div>Category</div>
+        <div style="font-size:1.4rem; font-weight:600; color:{color};">{category}</div>
     </div>
     """, unsafe_allow_html=True)
 
 # ------------------------------------------
-# ALERT (SUBTLE)
+# ALERT + HEALTH ADVICE
 # ------------------------------------------
 
-if today_aqi > 200:
-    st.warning("High pollution levels. Avoid outdoor exposure.")
+if today_aqi > 300:
+    st.error("Hazardous air quality. Stay indoors. Wear mask. Avoid all outdoor activities.")
+elif today_aqi > 200:
+    st.error("Very unhealthy air. Wear mask. Avoid outdoor exposure.")
 elif today_aqi > 150:
-    st.info("Moderate pollution. Consider precautions outdoors.")
+    st.warning("Unhealthy air quality. Wear mask. Limit outdoor activities.")
+elif today_aqi > 100:
+    st.warning("Unhealthy for sensitive groups. Consider wearing mask.")
+elif today_aqi > 50:
+    st.info("Moderate air quality. Sensitive people should take precautions.")
 else:
-    st.success("Air quality is within safe limits.")
+    st.success("Good air quality. Safe for outdoor activities.")
 
 # ------------------------------------------
 # TABLE + GRAPH
@@ -209,12 +242,12 @@ col1, col2 = st.columns([1.2, 1.5])
 
 with col1:
     st.markdown("#### Next 7 Days")
-    st.dataframe(prediction[["Date", "AQI"]], width='stretch')
+    st.dataframe(prediction[["Date", "AQI"]], width="stretch")
 
 with col2:
     st.markdown("#### Trend")
     fig = model.plot(forecast)
-    fig.set_size_inches(6, 3)
+    fig.set_size_inches(5, 3)
     st.pyplot(fig)
 
 # ------------------------------------------
@@ -228,4 +261,4 @@ hist_display["Date"] = hist_display["ds"].dt.date
 hist_display["AQI"] = hist_display["y"]
 hist_display = hist_display[["Date", "AQI"]]
 
-st.dataframe(hist_display, width='stretch')
+st.dataframe(hist_display, width="stretch")
