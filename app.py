@@ -1,220 +1,248 @@
 import streamlit as st
 import pandas as pd
 from prophet import Prophet
-from datetime import datetime
-import streamlit.components.v1 as components
 
-# ------------------------------------------
-# PAGE CONFIG
-# ------------------------------------------
-st.set_page_config(page_title="AirAware Smart", layout="centered")
+st.set_page_config(page_title="AirAware Smart", layout="wide")
 
-# ------------------------------------------
-# CSS
-# ------------------------------------------
+# ------------------ CSS ------------------
 st.markdown("""
 <style>
-
-header, footer, #MainMenu {visibility:hidden;}
+header {visibility: hidden;}
 
 .block-container {
-    max-width: 650px;
-    margin: auto;
-    padding: 25px;
-    border: 1px solid #e0e0e0;
-    border-radius: 15px;
-    background-color: #ffffff;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-h1,h2,h3,h4{
-            color: #000000 !important;
-            }
-div[data-testid="stExpander"] summary {
-    color: #000000 !important;
-    font-weight: 600;
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
 }
 
-div[data-testid="stExpander"] {
-    color: #000000 !important;
-}
-div[data-testid="stAlert"] {
-    color: #000000 !important;
-    font-weight: 500;
-}
-div[data-testid="stAlert"] * {
-    color: #000000 !important;
+section.main > div:first-child {
+    padding-top: 0rem !important;
 }
 
-/* EXTRA FIX FOR WARNING (YELLOW BOX) */
-div[data-testid="stAlert"] div {
-    color: #000000 !important;
-}
-label {
-    color: #000000 !important;
-    font-weight: 500;
+.stApp {
+    background: linear-gradient(135deg, #0f172a, #020617);
 }
 
-.title {
+section[data-testid="stSidebar"] {
+    background: #020617;
+}
+
+h1 {font-size: 26px !important; color: white;}
+h2 {font-size: 20px !important; color: white;}
+h3 {font-size: 17px !important; color: white;}
+p, label {font-size: 14px !important; color: white;}
+
+.kpi {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 14px;
     text-align: center;
-    font-size: 30px;
-    font-weight: 700;
-    color: #0d47a1;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
 }
 
-.subtitle {
-    text-align: center;
-    color: #555;
-    margin-bottom: 20px;
-}
-
-div.stButton > button {
-    height: 40px;
+.status-good {
+    background: linear-gradient(90deg,#16a34a,#22c55e);
+    padding: 10px;
     border-radius: 8px;
-    font-weight: 600;
+}
+.status-mid {
+    background: linear-gradient(90deg,#f59e0b,#facc15);
+    padding: 10px;
+    border-radius: 8px;
+}
+.status-bad {
+    background: linear-gradient(90deg,#dc2626,#ef4444);
+    padding: 10px;
+    border-radius: 8px;
 }
 
+.stButton>button {
+    background: #1e293b;
+    color: white;
+    border-radius: 8px;
+}
+.stButton>button:hover {
+    background: #2563eb;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------------------
-# LOAD DATA
-# ------------------------------------------
+# ---------------- DATA ----------------
 df = pd.read_csv("aqi_project_dataset.csv")
 df["date"] = pd.to_datetime(df["date"], dayfirst=True)
 
-# ------------------------------------------
-# TITLE
-# ------------------------------------------
-st.markdown('<div class="title">AirAware Smart</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Check Air Quality & Predictions</div>', unsafe_allow_html=True)
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("🎛️ Control Panel")
 
-st.markdown("<br>", unsafe_allow_html=True)
+city = st.sidebar.selectbox("Select City", sorted(df["area"].unique()))
 
-# ------------------------------------------
-# INPUT
-# ------------------------------------------
-col1, col2 = st.columns([4,1])
+st.sidebar.markdown("---")
+st.sidebar.markdown("## 🔍 Explore Insights")
 
-with col1:
-    city = st.selectbox("Select City", sorted(df["area"].unique()))
+if "view" not in st.session_state:
+    st.session_state.view = "dashboard"
 
-with col2:
-    st.markdown("<br>", unsafe_allow_html=True)
-    check = st.button("Check AQI", use_container_width=True)
+if st.sidebar.button("📊 7-Day Forecast"):
+    st.session_state.view = "7day"
 
-# ------------------------------------------
-# AFTER CLICK
-# ------------------------------------------
-if check:
+if st.sidebar.button("📈 Trend Graph"):
+    st.session_state.view = "graph"
 
-    city_data = df[df["area"] == city]
-    city_data = city_data.groupby("date")["aqi_value"].mean().reset_index()
+if st.sidebar.button("📁 Historical Data"):
+    st.session_state.view = "history"
 
-    prophet_df = city_data.rename(columns={"date": "ds", "aqi_value": "y"})
+if st.sidebar.button("🏭 Top Polluted Cities"):
+    st.session_state.view = "top"
 
-    model = Prophet()
-    model.fit(prophet_df)
+if st.sidebar.button("🏠 Dashboard"):
+    st.session_state.view = "dashboard"
 
-    future = model.make_future_dataframe(periods=365)
-    forecast = model.predict(future)
+# ---------------- MODEL ----------------
+city_data = df[df["area"] == city]
+city_data = city_data.groupby("date")["aqi_value"].mean().reset_index()
 
-    today = pd.to_datetime(datetime.today().date())
-    prediction = forecast[forecast["ds"] >= today].head(8)
+prophet_df = city_data.rename(columns={"date": "ds", "aqi_value": "y"})
+prophet_df["y"] = prophet_df["y"].clip(lower=10)
 
-    prediction["AQI"] = prediction["yhat"].round(0)
-    prediction["Date"] = prediction["ds"].dt.date
+model = Prophet()
+model.fit(prophet_df)
 
-    today_aqi = int(prediction.iloc[0]["AQI"])
+future = model.make_future_dataframe(periods=365)
+forecast = model.predict(future)
 
-    # CATEGORY
-    def get_category(aqi):
-        if aqi <= 50:
-            return "Good"
-        elif aqi <= 100:
-            return "Moderate"
-        elif aqi <= 150:
-            return "Unhealthy for Sensitive"
-        elif aqi <= 200:
-            return "Unhealthy"
-        else:
-            return "Hazardous"
+today = pd.to_datetime("today").normalize()
+prediction = forecast[forecast["ds"] >= today].head(8)
 
-    category = get_category(today_aqi)
+prediction["AQI"] = prediction["yhat"].clip(lower=10).round(0).astype(int)
+prediction["Date"] = prediction["ds"].dt.strftime("%d-%m-%Y")
 
-    # ------------------------------------------
-    # AQI CARD
-    # ------------------------------------------
-    components.html(f"""
-    <div style="background:#e3f2fd;padding:20px;border-radius:15px;margin-top:20px;
-    box-shadow:0 4px 15px rgba(0,0,0,0.2);font-family:sans-serif;">
+today_aqi = int(prediction.iloc[0]["AQI"])
 
-        <div style="display:flex;justify-content:space-between;">
-            <div>
-                <div style="color:#555;">AQI</div>
-                <div style="font-size:40px;font-weight:bold;color:#0d47a1;">
-                    {today_aqi}
-                </div>
-                <div style="font-weight:600;color:#0d47a1;">
-                    {category}
-                </div>
-            </div>
-
-            <div style="text-align:right;">
-                <div style="font-weight:600;">{city}</div>
-                <div style="font-size:12px;color:#555;">Today</div>
-            </div>
-        </div>
-
-        <div style="height:8px;border-radius:10px;
-        background:linear-gradient(to right,#2ecc71,#f1c40f,#e67e22,#e74c3c);
-        margin-top:15px;position:relative;">
-            <div style="position:absolute;top:-4px;
-            left:{min((today_aqi/300)*100,100)}%;
-            width:14px;height:14px;background:black;
-            border-radius:50%;transform:translateX(-50%);"></div>
-        </div>
-
-    </div>
-    """, height=200)
-
-    # ------------------------------------------
-    # HEALTH ADVISORY
-    # ------------------------------------------
-    st.markdown("#### Health Advisory")
-
-    if today_aqi > 300:
-        st.error("Hazardous air quality. Stay indoors. Wear a mask if necessary. Avoid all outdoor activities.")
-    elif today_aqi > 200:
-        st.error("Very unhealthy air quality. Wear a mask. Avoid outdoor exposure.")
-    elif today_aqi > 150:
-        st.warning("Unhealthy air quality. Wear a mask and limit outdoor activities.")
-    elif today_aqi > 100:
-        st.warning("Unhealthy for sensitive groups. Consider wearing a mask and reduce outdoor exertion.")
-    elif today_aqi > 50:
-        st.info("Moderate air quality. Sensitive individuals should take precautions.")
+# ---------------- CATEGORY ----------------
+def get_category(aqi):
+    if aqi <= 50:
+        return "Good"
+    elif aqi <= 100:
+        return "Moderate"
+    elif aqi <= 150:
+        return "Unhealthy (Sensitive)"
+    elif aqi <= 200:
+        return "Unhealthy"
     else:
-        st.success("Good air quality. Safe for outdoor activities.")
+        return "Hazardous"
 
-    # ------------------------------------------
-    # EXPANDERS WITH EMOJIS
-    # ------------------------------------------
-    st.markdown("### Explore Insights")
-    with st.expander("📊 7-Day Forecast"):
-        st.dataframe(prediction[["Date","AQI"]], width="stretch")
+category = get_category(today_aqi)
 
-    with st.expander("📈 Trend Graph"):
+view = st.session_state.view
+
+# ================= DASHBOARD =================
+if view == "dashboard":
+
+    st.title("🌍 AirAware Smart")
+    st.caption("Next-gen Air Quality Intelligence Dashboard")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.markdown(f"<div class='kpi'>📍 City<br><b>{city}</b></div>", unsafe_allow_html=True)
+
+    with c2:
+        st.markdown(f"<div class='kpi'>🌫 AQI Today<br><b>{today_aqi}</b></div>", unsafe_allow_html=True)
+
+    with c3:
+        st.markdown(f"<div class='kpi'>⚠ Category<br><b>{category}</b></div>", unsafe_allow_html=True)
+
+    if today_aqi <= 50:
+        st.markdown("<div class='status-good'>✅ Good air quality</div>", unsafe_allow_html=True)
+    elif today_aqi <= 100:
+        st.markdown("<div class='status-mid'>⚠ Moderate air quality</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='status-bad'>🚨 Poor air quality</div>", unsafe_allow_html=True)
+
+    st.markdown("## 📊 Forecast Overview")
+
+    col1, col2 = st.columns([1.1, 1.4])
+
+    with col1:
+        st.markdown("### 📅 Next 7 Days")
+
+        prediction["Category"] = prediction["AQI"].apply(get_category)
+
+        table_df = prediction[["Date", "AQI", "Category"]].copy().reset_index(drop=True)
+        table_df.insert(0, "No.", range(1, len(table_df) + 1))
+
+        st.dataframe(
+            table_df,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "No.": st.column_config.NumberColumn("No.", width=60),
+                "Date": st.column_config.TextColumn("Date", width=120),
+                "AQI": st.column_config.NumberColumn("AQI", width=80),
+                "Category": st.column_config.TextColumn("Category", width=300),
+            }
+        )
+
+    with col2:
+        st.markdown("### 📈 Trend Graph")
         fig = model.plot(forecast)
-        fig.set_size_inches(5,3)
+        fig.set_size_inches(7, 3.5)
         st.pyplot(fig)
 
-    with st.expander("📁 Historical Data"):
-        hist = prophet_df.copy()
-        hist["Date"] = hist["ds"].dt.date
-        hist["AQI"] = hist["y"]
-        st.dataframe(hist[["Date","AQI"]], width="stretch")
+# ================= OTHER VIEWS =================
+elif view == "7day":
+    st.title("📊 7-Day Forecast")
 
-    with st.expander("🏭 Top Polluted Cities"):
-        latest = df[df["date"] == df["date"].max()]
-        top = latest.groupby("area")["aqi_value"].mean().sort_values(ascending=False).head(5).reset_index()
-        top.columns = ["City","AQI"]
-        st.dataframe(top, width="stretch")
+    prediction["Category"] = prediction["AQI"].apply(get_category)
+
+    table_df = prediction[["Date", "AQI", "Category"]].copy().reset_index(drop=True)
+    table_df.insert(0, "No.", range(1, len(table_df) + 1))
+
+    st.dataframe(
+        table_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "No.": st.column_config.NumberColumn("No.", width=60),
+            "Date": st.column_config.TextColumn("Date", width=120),
+            "AQI": st.column_config.NumberColumn("AQI", width=80),
+            "Category": st.column_config.TextColumn("Category", width=300),
+        }
+    )
+
+elif view == "graph":
+    st.title("📈 Trend Graph")
+    fig = model.plot(forecast)
+    fig.set_size_inches(8, 4)
+    st.pyplot(fig)
+
+elif view == "history":
+    st.title("📁 Historical Data")
+
+    hist = prophet_df.copy()
+    hist["Date"] = hist["ds"].dt.strftime("%d-%m-%Y")
+    hist["AQI"] = hist["y"].astype(int)
+
+    hist_df = hist[["Date", "AQI"]].copy().reset_index(drop=True)
+    hist_df.insert(0, "No.", range(1, len(hist_df) + 1))
+
+    st.dataframe(hist_df, width="stretch", hide_index=True)
+
+elif view == "top":
+    st.title("🏭 Top Polluted Cities")
+
+    top = (
+        df.groupby("area")["aqi_value"]
+        .mean()
+        .sort_values(ascending=False)
+        .head(10)
+        .reset_index()
+    )
+
+    top = top.rename(columns={"area": "City"})
+
+    top_df = top.copy().reset_index(drop=True)
+    top_df.insert(0, "No.", range(1, len(top_df) + 1))
+
+    st.dataframe(top_df, width="stretch", hide_index=True)
